@@ -21,4 +21,5 @@ module.exports = [
   { id: 'level_50', emoji: '🔮', name: 'Mythic', description: 'Reach level 50', check: u => u.level >= 50 },
   { id: 'streak_100', emoji: '🔥🔥🔥🔥', name: 'Unbreakable', description: 'Claim /daily 100 days in a row', check: u => u.streak >= 100 },
   { id: 'tycoon', emoji: '🏰', name: 'Tycoon', description: 'Reach 100,000 credits', check: u => u.balance >= 100000 },
+  { id: 'robin_hood', emoji: '🦹', name: 'Robin Hood', description: 'Successfully rob 20 times', check: u => u.stats.robs_success >= 20 },
 ];

@@ -31,7 +31,7 @@ module.exports = {
         },
         { name: '🏅 Badges', value: `${user.badges.length}/${BADGES.length} unlocked` },
       )
-      .setFooter({ text: 'Use /level for full progress · /achievements for your badges' })
+      .setFooter({ text: 'Your bank is safe from /rob · Use /bank deposit to protect your credits' })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

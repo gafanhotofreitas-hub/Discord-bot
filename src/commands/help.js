@@ -17,7 +17,10 @@ const CATEGORIES = {
         '`/balance [user]` — Check your wallet & bank\n' +
         '`/daily` — Claim your daily reward (streak bonus!)\n' +
         '`/work` — Earn 50–200 credits (1h cooldown)\n' +
-        '`/pay` — Transfer credits to another user'
+        '`/pay` — Transfer credits to another user\n' +
+        '`/bank deposit` — Move credits into your bank (safe from robbery)\n' +
+        '`/bank withdraw` — Move credits back into your wallet\n' +
+        '`/rob` — Steal 5-20% of someone\'s wallet (10 min cooldown, risk of getting caught)'
       ),
   },
   games: {

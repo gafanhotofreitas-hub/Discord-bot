@@ -1,10 +1,14 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
 const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp } = require('../utils');
 
 const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣'];
+const SPINNING = '❔';
 const WIN_XP = 10;
 const LOSE_XP = 3;
+const SPIN_FRAMES_PER_REEL = 4;
+const FRAME_DELAY = 300;
+const REEL_LOCK_DELAY = 450;
 
 // Multiplier by combination
 function calculatePrize(a, b, c, bet) {
@@ -23,8 +27,11 @@ function randomSymbol() {
   return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
 }
 
-function spinFrame() {
-  return `**[ ${randomSymbol()} | ${randomSymbol()} | ${randomSymbol()} ]**`;
+function frame(r1, r2, r3) {
+  return new EmbedBuilder()
+    .setColor(COLORS.neutral)
+    .setTitle('🎰 Slots')
+    .setDescription(`**[ ${r1} | ${r2} | ${r3} ]**`);
 }
 
 module.exports = {
@@ -45,22 +52,41 @@ module.exports = {
     if (user.balance < bet) {
       return interaction.reply({
         content: `❌ You don't have enough credits! Current balance: **${user.balance}**`,
-        flags: MessageFlags.Ephemeral,
+        ephemeral: true,
       });
     }
 
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎰 Slots').setDescription(spinFrame())],
-    });
-    await sleep(500);
-    await interaction.editReply({
-      embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎰 Slots').setDescription(spinFrame())],
-    });
-    await sleep(500);
-
+    // The outcome is decided up front — the animation just reveals it gradually
     const a = randomSymbol();
     const b = randomSymbol();
     const c = randomSymbol();
+
+    await interaction.reply({ embeds: [frame(SPINNING, SPINNING, SPINNING)] });
+
+    // Reel 1: spins, then locks on its final symbol
+    for (let i = 0; i < SPIN_FRAMES_PER_REEL; i++) {
+      await sleep(FRAME_DELAY);
+      await interaction.editReply({ embeds: [frame(randomSymbol(), SPINNING, SPINNING)] });
+    }
+    await sleep(REEL_LOCK_DELAY);
+    await interaction.editReply({ embeds: [frame(a, SPINNING, SPINNING)] });
+
+    // Reel 2: spins, then locks
+    for (let i = 0; i < SPIN_FRAMES_PER_REEL; i++) {
+      await sleep(FRAME_DELAY);
+      await interaction.editReply({ embeds: [frame(a, randomSymbol(), SPINNING)] });
+    }
+    await sleep(REEL_LOCK_DELAY);
+    await interaction.editReply({ embeds: [frame(a, b, SPINNING)] });
+
+    // Reel 3: spins, then locks
+    for (let i = 0; i < SPIN_FRAMES_PER_REEL; i++) {
+      await sleep(FRAME_DELAY);
+      await interaction.editReply({ embeds: [frame(a, b, randomSymbol())] });
+    }
+    await sleep(REEL_LOCK_DELAY);
+    await interaction.editReply({ embeds: [frame(a, b, c)] });
+    await sleep(300);
 
     const prize = Math.floor(calculatePrize(a, b, c, bet));
     const won = prize > 0;

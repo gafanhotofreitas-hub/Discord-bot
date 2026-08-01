@@ -32,12 +32,13 @@ function defaultUser(userId) {
     bank: 0,
     last_daily: 0,
     last_work: 0,
+    last_rob: 0,
     xp: 0,
     level: 1,
     streak: 0,
     best_streak: 0,
     badges: [],
-    stats: { wins: 0, losses: 0, games_played: 0, blackjack_wins: 0, biggest_win: 0 },
+    stats: { wins: 0, losses: 0, games_played: 0, blackjack_wins: 0, biggest_win: 0, robs_success: 0 },
   };
 }
 
@@ -128,6 +129,77 @@ function transfer(fromId, toId, amount) {
   return true;
 }
 
+// --- Bank (safe zone, immune to robbery) ---------------------------------
+
+function deposit(userId, amount) {
+  ensureUser(userId);
+  const user = data[userId];
+  if (amount > user.balance) return null;
+
+  user.balance -= amount;
+  user.bank += amount;
+  save();
+  return user;
+}
+
+function withdraw(userId, amount) {
+  ensureUser(userId);
+  const user = data[userId];
+  if (amount > user.bank) return null;
+
+  user.bank -= amount;
+  user.balance += amount;
+  save();
+  return user;
+}
+
+// --- Robbery ---------------------------------------------------------------
+
+const ROB_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+const ROB_MIN_PERCENT = 0.05;
+const ROB_MAX_PERCENT = 0.20;
+const ROB_SUCCESS_CHANCE = 0.75;
+
+function getRobCooldownRemaining(userId, now) {
+  ensureUser(userId);
+  const remaining = ROB_COOLDOWN_MS - (now - data[userId].last_rob);
+  return remaining > 0 ? remaining : 0;
+}
+
+// Attempts a robbery. Only the wallet (balance) is at risk — the bank is a
+// safe zone. Returns a result object describing what happened.
+function attemptRob(robberId, targetId, now) {
+  ensureUser(robberId);
+  ensureUser(targetId);
+
+  data[robberId].last_rob = now;
+
+  const target = data[targetId];
+  if (target.balance <= 0) {
+    save();
+    return { outcome: 'empty' };
+  }
+
+  const success = Math.random() < ROB_SUCCESS_CHANCE;
+  const percent = ROB_MIN_PERCENT + Math.random() * (ROB_MAX_PERCENT - ROB_MIN_PERCENT);
+  const amount = Math.max(1, Math.floor(target.balance * percent));
+
+  if (success) {
+    target.balance -= amount;
+    data[robberId].balance += amount;
+    data[robberId].stats.robs_success += 1;
+    save();
+    return { outcome: 'success', amount, percent };
+  }
+
+  // Failed robbery: the robber gets caught and pays a fine to the target instead
+  const fine = Math.min(data[robberId].balance, amount);
+  data[robberId].balance -= fine;
+  target.balance += fine;
+  save();
+  return { outcome: 'caught', amount: fine, percent };
+}
+
 // --- Leveling system ---------------------------------------------------
 
 function xpForLevel(level) {
@@ -212,6 +284,10 @@ module.exports = {
   setLastWork,
   getLeaderboard,
   transfer,
+  deposit,
+  withdraw,
+  getRobCooldownRemaining,
+  attemptRob,
   xpForLevel,
   addXp,
   updateDailyStreak,

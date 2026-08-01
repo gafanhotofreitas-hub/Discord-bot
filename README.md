@@ -12,6 +12,9 @@ Uses fake currency (credits), with no connection to real money.
 | `/daily` | Daily reward (250 credits base + streak bonus, 24h cooldown) |
 | `/work` | Earn 50–200 credits (1h cooldown) |
 | `/pay` | Transfer credits to another user |
+| `/bank deposit [amount]` | Move credits into your bank (safe from robbery) |
+| `/bank withdraw [amount]` | Move credits from your bank back into your wallet |
+| `/rob <user>` | Steal 5-20% of someone's wallet (10 min cooldown, risk of getting caught) |
 
 ### 🎮 Games
 | Command | Description |
@@ -34,6 +37,16 @@ Uses fake currency (credits), with no connection to real money.
 | Command | Description |
 |---|---|
 | `/admin-give` | *(Admin only)* Give or remove credits from a user |
+
+## Bank & robbery
+
+Credits in your wallet (`/balance`) can be stolen. Credits in your bank
+(`/bank deposit`) are a **safe zone** — completely immune to `/rob`.
+
+`/rob` steals 5-20% of the target's *wallet* balance only (never their bank).
+There's a 75% success chance; on failure, the robber pays a fine to the
+target instead. Robbing has a 10-minute cooldown per user, and you can't rob
+yourself or a bot.
 
 ## Leveling system
 
