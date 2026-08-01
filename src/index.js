@@ -28,11 +28,38 @@ client.once('clientReady', () => {
   console.log(`📦 ${client.commands.size} commands loaded.`);
 });
 
+// --- Anti-spam cooldowns (per user) ------------------------------------
+// Game commands get a longer cooldown to prevent spam-clicking for credits.
+// Everything else gets a short cooldown just to prevent double-submits.
+const GAME_COMMANDS = new Set(['coinflip', 'slots', 'dice', 'roulette', 'blackjack']);
+const GAME_COOLDOWN_MS = 5000;
+const OTHER_COOLDOWN_MS = 2000;
+
+const lastGameUse = new Map(); // userId -> timestamp
+const lastOtherUse = new Map(); // userId -> timestamp
+
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
+
+  const isGameCommand = GAME_COMMANDS.has(interaction.commandName);
+  const cooldownMap = isGameCommand ? lastGameUse : lastOtherUse;
+  const cooldownMs = isGameCommand ? GAME_COOLDOWN_MS : OTHER_COOLDOWN_MS;
+
+  const now = Date.now();
+  const lastUsed = cooldownMap.get(interaction.user.id) || 0;
+  const remaining = cooldownMs - (now - lastUsed);
+
+  if (remaining > 0) {
+    return interaction.reply({
+      content: `⏳ Slow down! Wait **${(remaining / 1000).toFixed(1)}s** before using ${isGameCommand ? 'another game command' : 'a command'} again.`,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  cooldownMap.set(interaction.user.id, now);
 
   try {
     await command.execute(interaction);
