@@ -85,10 +85,10 @@ module.exports = {
       betDescription = `**${colorChoice}**`;
     }
 
-    const delta = won ? prize - bet : -bet;
+    const delta = won ? prize - bet : -bet; // actual credits gained/lost
     const newBalance = addBalance(interaction.user.id, delta);
     const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
-    recordGameResult(interaction.user.id, won, 'roulette', prize);
+    recordGameResult(interaction.user.id, won, 'roulette', won ? delta : 0);
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
     const embed = new EmbedBuilder()
@@ -98,7 +98,7 @@ module.exports = {
         `The ball landed on ${colorEmoji(resultColor)} **${result} (${resultColor})**!\n` +
         `You bet on ${betDescription}.\n\n` +
         (won
-          ? `✅ You won **${prize} credits**! · +${WIN_XP} XP`
+          ? `✅ You won **${delta} credits**! · +${WIN_XP} XP`
           : `❌ You lost **${bet} credits**. · +${LOSE_XP} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });

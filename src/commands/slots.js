@@ -90,10 +90,10 @@ module.exports = {
 
     const prize = Math.floor(calculatePrize(a, b, c, bet));
     const won = prize > 0;
-    const result = prize - bet; // net balance change for this spin
-    const newBalance = addBalance(interaction.user.id, result);
+    const netWin = prize - bet; // actual credits gained — what the balance changes by
+    const newBalance = addBalance(interaction.user.id, netWin);
     const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
-    recordGameResult(interaction.user.id, won, 'slots', prize);
+    recordGameResult(interaction.user.id, won, 'slots', Math.max(netWin, 0));
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
     const embed = new EmbedBuilder()
@@ -102,7 +102,7 @@ module.exports = {
       .setDescription(
         `**[ ${a} | ${b} | ${c} ]**\n\n` +
         (won
-          ? `✅ You won **${prize} credits**! · +${WIN_XP} XP`
+          ? `✅ You won **${netWin} credits**! · +${WIN_XP} XP`
           : `❌ No matching combo. You lost **${bet} credits**. · +${LOSE_XP} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });

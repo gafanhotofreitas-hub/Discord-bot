@@ -49,11 +49,11 @@ module.exports = {
     const roll = Math.floor(Math.random() * 6) + 1;
     const won = roll === guess;
     const prize = won ? bet * PAYOUT_MULTIPLIER : 0;
-    const delta = won ? prize - bet : -bet;
+    const netWin = won ? prize - bet : -bet; // actual credits gained/lost
 
-    const newBalance = addBalance(interaction.user.id, delta);
+    const newBalance = addBalance(interaction.user.id, netWin);
     const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
-    recordGameResult(interaction.user.id, won, 'dice', prize);
+    recordGameResult(interaction.user.id, won, 'dice', won ? netWin : 0);
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
     const embed = new EmbedBuilder()
@@ -62,7 +62,7 @@ module.exports = {
       .setDescription(
         `${DICE_FACES[roll - 1]} The dice landed on **${roll}**! You guessed **${guess}**.\n\n` +
         (won
-          ? `✅ You won **${prize} credits** (5x payout)! · +${WIN_XP} XP`
+          ? `✅ You won **${netWin} credits** (5x payout)! · +${WIN_XP} XP`
           : `❌ You lost **${bet} credits**. · +${LOSE_XP} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });
