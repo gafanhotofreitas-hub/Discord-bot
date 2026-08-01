@@ -1,0 +1,89 @@
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
+const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp } = require('../utils');
+
+const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣'];
+const WIN_XP = 10;
+const LOSE_XP = 3;
+
+// Multiplier by combination
+function calculatePrize(a, b, c, bet) {
+  if (a === b && b === c) {
+    if (a === '7️⃣') return bet * 10;
+    if (a === '💎') return bet * 7;
+    return bet * 5;
+  }
+  if (a === b || b === c || a === c) {
+    return bet * 1.5;
+  }
+  return 0;
+}
+
+function randomSymbol() {
+  return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+}
+
+function spinFrame() {
+  return `**[ ${randomSymbol()} | ${randomSymbol()} | ${randomSymbol()} ]**`;
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('slots')
+    .setDescription('Play the slot machine')
+    .addIntegerOption(option =>
+      option.setName('bet')
+        .setDescription('Amount of credits to bet')
+        .setRequired(true)
+        .setMinValue(1)
+    ),
+
+  async execute(interaction) {
+    const bet = interaction.options.getInteger('bet');
+    const user = getUser(interaction.user.id);
+
+    if (user.balance < bet) {
+      return interaction.reply({
+        content: `❌ You don't have enough credits! Current balance: **${user.balance}**`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    await interaction.reply({
+      embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎰 Slots').setDescription(spinFrame())],
+    });
+    await sleep(500);
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎰 Slots').setDescription(spinFrame())],
+    });
+    await sleep(500);
+
+    const a = randomSymbol();
+    const b = randomSymbol();
+    const c = randomSymbol();
+
+    const prize = Math.floor(calculatePrize(a, b, c, bet));
+    const won = prize > 0;
+    const result = prize - bet; // net balance change for this spin
+    const newBalance = addBalance(interaction.user.id, result);
+    const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
+    recordGameResult(interaction.user.id, won, 'slots', prize);
+    const newBadges = checkAndAwardBadges(interaction.user.id);
+
+    const embed = new EmbedBuilder()
+      .setColor(won ? COLORS.success : COLORS.fail)
+      .setTitle('🎰 Slots')
+      .setDescription(
+        `**[ ${a} | ${b} | ${c} ]**\n\n` +
+        (won
+          ? `✅ You won **${prize} credits**! · +${WIN_XP} XP`
+          : `❌ No matching combo. You lost **${bet} credits**. · +${LOSE_XP} XP`)
+      )
+      .setFooter({ text: `Current balance: ${newBalance.balance} credits` });
+
+    appendLevelUp(embed, xpResult);
+    appendBadgeUnlocks(embed, newBadges);
+
+    await interaction.editReply({ embeds: [embed] });
+  },
+};
