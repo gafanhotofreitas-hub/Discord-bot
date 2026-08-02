@@ -3,6 +3,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'config', '.env') })
 
 const fs = require('fs');
 const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
+const { flushSave } = require('./database');
 
 // --- Global safety nets --------------------------------------------------
 // These prevent the whole process from crashing/exiting silently because of
@@ -16,6 +17,17 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (error) => {
   console.error('🔥 Uncaught exception:', error);
 });
+
+// Ensure any pending (debounced) database save is flushed to disk before the
+// process actually exits — otherwise a PM2 restart/redeploy could lose the
+// last fraction of a second of balance/XP changes.
+function gracefulShutdown(signal) {
+  console.log(`\n👋 Received ${signal}, saving data and shutting down...`);
+  flushSave();
+  process.exit(0);
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],

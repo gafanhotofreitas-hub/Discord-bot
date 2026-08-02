@@ -7,6 +7,43 @@ const DB_PATH = path.join(__dirname, '..', 'economy.json');
 // In-memory structure: { userId: { balance, bank, last_daily, last_work, xp, level, streak, best_streak, badges, stats } }
 let data = {};
 
+// Writing to disk synchronously on every single mutation (a typical command
+// like /work triggers 3-4 separate saves: balance, cooldown, XP, badges)
+// blocks Node's event loop repeatedly during command handling. On a slower
+// disk or under load, this can add up to enough delay that Discord discards
+// the interaction (error 10062 "Unknown interaction", which requires a
+// response within ~3 seconds). Debouncing coalesces rapid successive saves
+// into a single write shortly after, keeping command handling fast.
+const SAVE_DEBOUNCE_MS = 250;
+let saveTimeout = null;
+
+function writeToDisk() {
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('🔥 Failed to save economy.json:', error);
+  }
+}
+
+function save() {
+  if (saveTimeout) return; // a write is already scheduled — this call rides along with it
+  saveTimeout = setTimeout(() => {
+    saveTimeout = null;
+    writeToDisk();
+  }, SAVE_DEBOUNCE_MS);
+}
+
+// Forces any pending debounced save to happen immediately. Used on process
+// shutdown (SIGINT/SIGTERM from PM2, Ctrl+C, etc.) so a restart never loses
+// the last few seconds of changes.
+function flushSave() {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  writeToDisk();
+}
+
 function load() {
   if (fs.existsSync(DB_PATH)) {
     try {
@@ -16,18 +53,7 @@ function load() {
       data = {};
     }
   } else {
-    save();
-  }
-}
-
-// Simple synchronous write — good enough for a single server bot's volume.
-// Wrapped in try/catch so a disk issue (full disk, permissions, etc.) logs
-// an error instead of crashing the whole bot.
-function save() {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error('🔥 Failed to save economy.json:', error);
+    flushSave();
   }
 }
 
@@ -299,5 +325,6 @@ module.exports = {
   updateDailyStreak,
   recordGameResult,
   checkAndAwardBadges,
+  flushSave,
   BADGES,
 };
