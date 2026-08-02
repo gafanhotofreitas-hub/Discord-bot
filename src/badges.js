@@ -3,8 +3,8 @@
 // true if the badge should be unlocked.
 module.exports = [
   { id: 'welcome', emoji: '🎉', name: 'Welcome', description: 'Join the economy', check: () => true },
-  { id: 'thousandaire', emoji: '💰', name: 'Thousandaire', description: 'Reach 1,000 credits', check: u => u.balance >= 1000 },
-  { id: 'high_roller', emoji: '💎', name: 'High Roller', description: 'Reach 10,000 credits', check: u => u.balance >= 10000 },
+  { id: 'thousandaire', emoji: '💰', name: 'Thousandaire', description: 'Reach 1,000 credits total (wallet + bank)', check: u => (u.balance + u.bank) >= 1000 },
+  { id: 'high_roller', emoji: '💎', name: 'High Roller', description: 'Reach 10,000 credits total (wallet + bank)', check: u => (u.balance + u.bank) >= 10000 },
   { id: 'streak_3', emoji: '🔥', name: '3-Day Streak', description: 'Claim /daily 3 days in a row', check: u => u.streak >= 3 },
   { id: 'streak_7', emoji: '🔥🔥', name: 'Week Warrior', description: 'Claim /daily 7 days in a row', check: u => u.streak >= 7 },
   { id: 'streak_30', emoji: '🔥🔥🔥', name: 'Monthly Master', description: 'Claim /daily 30 days in a row', check: u => u.streak >= 30 },
@@ -20,6 +20,6 @@ module.exports = [
   { id: 'big_winner', emoji: '💥', name: 'Big Winner', description: 'Win 500+ credits in a single game', check: u => u.stats.biggest_win >= 500 },
   { id: 'level_50', emoji: '🔮', name: 'Mythic', description: 'Reach level 50', check: u => u.level >= 50 },
   { id: 'streak_100', emoji: '🔥🔥🔥🔥', name: 'Unbreakable', description: 'Claim /daily 100 days in a row', check: u => u.streak >= 100 },
-  { id: 'tycoon', emoji: '🏰', name: 'Tycoon', description: 'Reach 100,000 credits', check: u => u.balance >= 100000 },
+  { id: 'tycoon', emoji: '🏰', name: 'Tycoon', description: 'Reach 100,000 credits total (wallet + bank)', check: u => (u.balance + u.bank) >= 100000 },
   { id: 'robin_hood', emoji: '🦹', name: 'Robin Hood', description: 'Successfully rob 20 times', check: u => u.stats.robs_success >= 20 },
 ];
