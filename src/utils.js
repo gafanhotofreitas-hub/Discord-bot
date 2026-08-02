@@ -72,4 +72,31 @@ async function safeEdit(interaction, payload, retries = 0) {
   return false;
 }
 
-module.exports = { COLORS, progressBar, sleep, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit };
+// For button/component interactions (like blackjack's hit/stand buttons):
+// acknowledges the click immediately with deferUpdate (very reliable), then
+// edits the original interaction's reply through the more robust webhook
+// edit path (same mechanism as safeEdit) instead of relying on i.update()
+// directly, which has occasionally failed to display final results.
+// If everything fails, falls back to posting a brand new followUp message
+// so the result is never silently lost.
+async function safeComponentUpdate(componentInteraction, originalInteraction, payload, retries = 2) {
+  try {
+    await componentInteraction.deferUpdate();
+  } catch (error) {
+    console.error('Failed to defer component update:', error);
+  }
+
+  const success = await safeEdit(originalInteraction, payload, retries);
+  if (!success) {
+    try {
+      await originalInteraction.followUp(payload);
+      return true;
+    } catch (error) {
+      console.error('Failed to post fallback followUp message:', error);
+      return false;
+    }
+  }
+  return true;
+}
+
+module.exports = { COLORS, progressBar, sleep, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit, safeComponentUpdate };

@@ -7,7 +7,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
-const { COLORS, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit } = require('../utils');
+const { COLORS, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit, safeComponentUpdate } = require('../utils');
 
 const SUITS = ['♠️', '♥️', '♦️', '♣️'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -147,12 +147,12 @@ module.exports = {
             embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
             appendLevelUp(embed, xpResult);
             appendBadgeUnlocks(embed, newBadges);
-            await i.update({ embeds: [embed], components: [] });
+            await safeComponentUpdate(i, interaction, { embeds: [embed], components: [] }, 2);
             collector.stop();
             return;
           }
 
-          await i.update({ embeds: [buildEmbed(false)], components: [buttons] });
+          await safeComponentUpdate(i, interaction, { embeds: [buildEmbed(false)], components: [buttons] }, 1);
         }
 
         if (i.customId === 'stand') {
@@ -204,13 +204,19 @@ module.exports = {
           embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
           appendLevelUp(embed, xpResult);
           appendBadgeUnlocks(embed, newBadges);
-          await i.update({ embeds: [embed], components: [] });
+          await safeComponentUpdate(i, interaction, { embeds: [embed], components: [] }, 2);
           collector.stop();
         }
       } catch (error) {
         console.error('Error in blackjack button handler:', error);
         finished = true;
         collector.stop();
+        // Best-effort: still try to tell the user something went wrong,
+        // instead of silently leaving the game frozen with no explanation.
+        await interaction.followUp({
+          content: '⚠️ Something went wrong displaying the result, but your balance was already updated correctly — check /balance to confirm.',
+          flags: MessageFlags.Ephemeral,
+        }).catch(() => {});
         await interaction.editReply({ components: [] }).catch(() => {});
       }
     });
