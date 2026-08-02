@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
-const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp } = require('../utils');
+const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit } = require('../utils');
 
 const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const COLOR_PAYOUT = 2;
@@ -85,9 +85,11 @@ module.exports = {
       betDescription = `**${colorChoice}**`;
     }
 
-    const delta = won ? prize - bet : -bet; // actual credits gained/lost
+    const delta = won ? prize - bet : -bet;
+    const totalXp = (won ? WIN_XP : LOSE_XP) + betXpBonus(bet);
+
     const newBalance = addBalance(interaction.user.id, delta);
-    const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
+    const xpResult = addXp(interaction.user.id, totalXp);
     recordGameResult(interaction.user.id, won, 'roulette', won ? delta : 0);
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
@@ -98,14 +100,14 @@ module.exports = {
         `The ball landed on ${colorEmoji(resultColor)} **${result} (${resultColor})**!\n` +
         `You bet on ${betDescription}.\n\n` +
         (won
-          ? `✅ You won **${delta} credits**! · +${WIN_XP} XP`
-          : `❌ You lost **${bet} credits**. · +${LOSE_XP} XP`)
+          ? `✅ You won **${delta} credits**! · +${totalXp} XP`
+          : `❌ You lost **${bet} credits**. · +${totalXp} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });
 
     appendLevelUp(embed, xpResult);
     appendBadgeUnlocks(embed, newBadges);
 
-    await interaction.editReply({ embeds: [embed] });
+    await safeEdit(interaction, { embeds: [embed] }, 2);
   },
 };

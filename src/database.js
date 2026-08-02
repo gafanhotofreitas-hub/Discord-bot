@@ -20,9 +20,15 @@ function load() {
   }
 }
 
-// Simple synchronous write — good enough for a single server bot's volume
+// Simple synchronous write — good enough for a single server bot's volume.
+// Wrapped in try/catch so a disk issue (full disk, permissions, etc.) logs
+// an error instead of crashing the whole bot.
 function save() {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('🔥 Failed to save economy.json:', error);
+  }
 }
 
 function defaultUser(userId) {
@@ -113,7 +119,7 @@ function setLastWork(userId, timestamp) {
 
 function getLeaderboard(limit = 10) {
   return Object.values(data)
-    .sort((a, b) => b.balance - a.balance)
+    .sort((a, b) => (b.balance + b.bank) - (a.balance + a.bank))
     .slice(0, limit);
 }
 

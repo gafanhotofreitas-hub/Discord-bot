@@ -89,8 +89,12 @@ module.exports = {
     });
 
     collector.on('collect', async i => {
-      const category = CATEGORIES[i.values[0]];
-      await i.update({ embeds: [category.embed], components: [row] });
+      try {
+        const category = CATEGORIES[i.values[0]];
+        await i.update({ embeds: [category.embed], components: [row] });
+      } catch (error) {
+        console.error('Error in help menu handler:', error);
+      }
     });
 
     collector.on('end', async () => {

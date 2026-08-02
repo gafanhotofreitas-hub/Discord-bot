@@ -4,8 +4,29 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'config', '.env') })
 const fs = require('fs');
 const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
 
+// --- Global safety nets --------------------------------------------------
+// These prevent the whole process from crashing/exiting silently because of
+// an error in a single command, event handler, or background promise.
+// Without these, an unhandled rejection anywhere (e.g. inside a button
+// collector) can bring the entire bot down with no error in the logs.
+process.on('unhandledRejection', (reason) => {
+  console.error('🔥 Unhandled promise rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('🔥 Uncaught exception:', error);
+});
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
+});
+
+client.on('error', (error) => {
+  console.error('🔥 Discord client error:', error);
+});
+
+client.on('shardError', (error) => {
+  console.error('🔥 Websocket connection error:', error);
 });
 
 client.commands = new Collection();
@@ -67,12 +88,20 @@ client.on('interactionCreate', async interaction => {
     console.error(`Error executing /${interaction.commandName}:`, error);
     const errorMessage = { content: '❌ An error occurred while executing this command.', flags: MessageFlags.Ephemeral };
 
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errorMessage);
-    } else {
-      await interaction.reply(errorMessage);
+    // Sending the error message itself can fail (e.g. expired interaction) —
+    // catch that too so it never bubbles up as an unhandled rejection.
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(errorMessage);
+      } else {
+        await interaction.reply(errorMessage);
+      }
+    } catch (followUpError) {
+      console.error('Could not send error message to user:', followUpError);
     }
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error('🔥 Failed to log in — check your DISCORD_TOKEN:', error);
+});

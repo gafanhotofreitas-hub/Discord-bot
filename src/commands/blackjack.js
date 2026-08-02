@@ -7,7 +7,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
-const { COLORS, appendBadgeUnlocks, appendLevelUp } = require('../utils');
+const { COLORS, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit } = require('../utils');
 
 const SUITS = ['♠️', '♥️', '♦️', '♣️'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -50,12 +50,13 @@ function formatHand(hand) {
 
 // Applies balance/xp/badge side effects for a finished round and returns
 // the extra embed fields to append.
-function settleRound(userId, won, betDelta) {
+function settleRound(userId, won, betDelta, bet) {
   const newBalance = addBalance(userId, betDelta);
-  const xpResult = addXp(userId, won ? WIN_XP : LOSE_XP);
+  const totalXp = (won ? WIN_XP : LOSE_XP) + betXpBonus(bet);
+  const xpResult = addXp(userId, totalXp);
   recordGameResult(userId, won, 'blackjack', won ? betDelta : 0);
   const newBadges = checkAndAwardBadges(userId);
-  return { newBalance, xpResult, newBadges };
+  return { newBalance, xpResult, newBadges, totalXp };
 }
 
 module.exports = {
@@ -111,8 +112,8 @@ module.exports = {
     const initialTotal = calculateTotal(playerHand);
     if (initialTotal === 21) {
       const win = Math.floor(bet * 1.5);
-      const { newBalance, xpResult, newBadges } = settleRound(interaction.user.id, true, win);
-      const embed = buildEmbed(true, `🎉 Natural blackjack! You won **1.5x** your bet (+${win} credits)! · +${WIN_XP} XP`, COLORS.success);
+      const { newBalance, xpResult, newBadges, totalXp } = settleRound(interaction.user.id, true, win, bet);
+      const embed = buildEmbed(true, `🎉 Natural blackjack! You won **1.5x** your bet (+${win} credits)! · +${totalXp} XP`, COLORS.success);
       embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
       appendLevelUp(embed, xpResult);
       appendBadgeUnlocks(embed, newBadges);
@@ -134,75 +135,83 @@ module.exports = {
     let finished = false;
 
     collector.on('collect', async i => {
-      if (i.customId === 'hit') {
-        playerHand.push(deck.pop());
-        const total = calculateTotal(playerHand);
+      try {
+        if (i.customId === 'hit') {
+          playerHand.push(deck.pop());
+          const total = calculateTotal(playerHand);
 
-        if (total > 21) {
+          if (total > 21) {
+            finished = true;
+            const { newBalance, xpResult, newBadges, totalXp } = settleRound(interaction.user.id, false, -bet, bet);
+            const embed = buildEmbed(true, `💥 You busted with **${total}**! You lost **${bet} credits**. · +${totalXp} XP`, COLORS.fail);
+            embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
+            appendLevelUp(embed, xpResult);
+            appendBadgeUnlocks(embed, newBadges);
+            await i.update({ embeds: [embed], components: [] });
+            collector.stop();
+            return;
+          }
+
+          await i.update({ embeds: [buildEmbed(false)], components: [buttons] });
+        }
+
+        if (i.customId === 'stand') {
           finished = true;
-          const { newBalance, xpResult, newBadges } = settleRound(interaction.user.id, false, -bet);
-          const embed = buildEmbed(true, `💥 You busted with **${total}**! You lost **${bet} credits**. · +${LOSE_XP} XP`, COLORS.fail);
+          let dealerTotal = calculateTotal(dealerHand);
+          while (dealerTotal < 17) {
+            dealerHand.push(deck.pop());
+            dealerTotal = calculateTotal(dealerHand);
+          }
+
+          const playerTotal = calculateTotal(playerHand);
+          let outcome;
+          let balanceDelta;
+          let won;
+          let color;
+
+          if (dealerTotal > 21 || playerTotal > dealerTotal) {
+            balanceDelta = bet;
+            won = true;
+            color = COLORS.success;
+          } else if (playerTotal === dealerTotal) {
+            outcome = `🤝 Tie at **${playerTotal}**. Your bet was returned.`;
+            balanceDelta = 0;
+            won = null; // push — no xp/stat change
+            color = COLORS.neutral;
+          } else {
+            balanceDelta = -bet;
+            won = false;
+            color = COLORS.fail;
+          }
+
+          let xpResult = null;
+          let newBadges = [];
+          let newBalance;
+
+          if (won === null) {
+            newBalance = addBalance(interaction.user.id, balanceDelta);
+          } else {
+            const settled = settleRound(interaction.user.id, won, balanceDelta, bet);
+            newBalance = settled.newBalance;
+            xpResult = settled.xpResult;
+            newBadges = settled.newBadges;
+            outcome = won
+              ? `🎉 You won with **${playerTotal}** against **${dealerTotal}**! +${bet} credits · +${settled.totalXp} XP`
+              : `❌ You lost with **${playerTotal}** against **${dealerTotal}**. -${bet} credits · +${settled.totalXp} XP`;
+          }
+
+          const embed = buildEmbed(true, outcome, color);
           embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
           appendLevelUp(embed, xpResult);
           appendBadgeUnlocks(embed, newBadges);
           await i.update({ embeds: [embed], components: [] });
           collector.stop();
-          return;
         }
-
-        await i.update({ embeds: [buildEmbed(false)], components: [buttons] });
-      }
-
-      if (i.customId === 'stand') {
+      } catch (error) {
+        console.error('Error in blackjack button handler:', error);
         finished = true;
-        let dealerTotal = calculateTotal(dealerHand);
-        while (dealerTotal < 17) {
-          dealerHand.push(deck.pop());
-          dealerTotal = calculateTotal(dealerHand);
-        }
-
-        const playerTotal = calculateTotal(playerHand);
-        let outcome;
-        let balanceDelta;
-        let won;
-        let color;
-
-        if (dealerTotal > 21 || playerTotal > dealerTotal) {
-          outcome = `🎉 You won with **${playerTotal}** against **${dealerTotal}**! +${bet} credits · +${WIN_XP} XP`;
-          balanceDelta = bet;
-          won = true;
-          color = COLORS.success;
-        } else if (playerTotal === dealerTotal) {
-          outcome = `🤝 Tie at **${playerTotal}**. Your bet was returned.`;
-          balanceDelta = 0;
-          won = null; // push — no xp/stat change
-          color = COLORS.neutral;
-        } else {
-          outcome = `❌ You lost with **${playerTotal}** against **${dealerTotal}**. -${bet} credits · +${LOSE_XP} XP`;
-          balanceDelta = -bet;
-          won = false;
-          color = COLORS.fail;
-        }
-
-        let xpResult = null;
-        let newBadges = [];
-        let newBalance;
-
-        if (won === null) {
-          newBalance = addBalance(interaction.user.id, balanceDelta);
-        } else {
-          const settled = settleRound(interaction.user.id, won, balanceDelta);
-          newBalance = settled.newBalance;
-          xpResult = settled.xpResult;
-          newBadges = settled.newBadges;
-        }
-
-        const embed = buildEmbed(true, outcome, color);
-        embed.setFooter({ text: `Current balance: ${newBalance.balance} credits` });
-        appendLevelUp(embed, xpResult);
-        appendBadgeUnlocks(embed, newBadges);
-        await i.update({ embeds: [embed], components: [] });
         collector.stop();
+        await interaction.editReply({ components: [] }).catch(() => {});
       }
     });
 

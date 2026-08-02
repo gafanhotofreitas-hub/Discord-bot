@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
-const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp } = require('../utils');
+const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit } = require('../utils');
 
 const WIN_XP = 10;
 const LOSE_XP = 3;
@@ -45,7 +45,8 @@ module.exports = {
     const result = Math.random() < 0.5 ? 'heads' : 'tails';
     const won = result === choice;
     const newBalance = addBalance(interaction.user.id, won ? bet : -bet);
-    const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
+    const totalXp = (won ? WIN_XP : LOSE_XP) + betXpBonus(bet);
+    const xpResult = addXp(interaction.user.id, totalXp);
     recordGameResult(interaction.user.id, won, 'coinflip', bet);
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
@@ -55,14 +56,14 @@ module.exports = {
       .setDescription(
         `The coin landed on **${result}**!\n\n` +
         (won
-          ? `✅ You won **${bet} credits**! · +${WIN_XP} XP`
-          : `❌ You lost **${bet} credits**. · +${LOSE_XP} XP`)
+          ? `✅ You won **${bet} credits**! · +${totalXp} XP`
+          : `❌ You lost **${bet} credits**. · +${totalXp} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });
 
     appendLevelUp(embed, xpResult);
     appendBadgeUnlocks(embed, newBadges);
 
-    await interaction.editReply({ embeds: [embed] });
+    await safeEdit(interaction, { embeds: [embed] }, 2);
   },
 };

@@ -18,7 +18,8 @@ module.exports = {
 
     const lines = top.map((u, i) => {
       const position = MEDALS[i] || `\`#${i + 1}\``;
-      return `${position} <@${u.user_id}> — **${u.balance}** credits · ⭐ Lv.${u.level}`;
+      const total = u.balance + u.bank;
+      return `${position} <@${u.user_id}> — **${total}** credits total (💰${u.balance} + 🏦${u.bank}) · ⭐ Lv.${u.level}`;
     });
 
     const embed = new EmbedBuilder()

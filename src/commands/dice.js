@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, addBalance, addXp, recordGameResult, checkAndAwardBadges } = require('../database');
-const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp } = require('../utils');
+const { COLORS, sleep, appendBadgeUnlocks, appendLevelUp, betXpBonus, safeEdit } = require('../utils');
 
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const PAYOUT_MULTIPLIER = 5; // exact number guess pays 5x
@@ -41,7 +41,7 @@ module.exports = {
       embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎲 Dice').setDescription('Rolling... 🎲')],
     });
     await sleep(400);
-    await interaction.editReply({
+    await safeEdit(interaction, {
       embeds: [new EmbedBuilder().setColor(COLORS.neutral).setTitle('🎲 Dice').setDescription(`${DICE_FACES[Math.floor(Math.random() * 6)]}`)],
     });
     await sleep(500);
@@ -49,10 +49,11 @@ module.exports = {
     const roll = Math.floor(Math.random() * 6) + 1;
     const won = roll === guess;
     const prize = won ? bet * PAYOUT_MULTIPLIER : 0;
-    const netWin = won ? prize - bet : -bet; // actual credits gained/lost
+    const netWin = won ? prize - bet : -bet;
+    const totalXp = (won ? WIN_XP : LOSE_XP) + betXpBonus(bet);
 
     const newBalance = addBalance(interaction.user.id, netWin);
-    const xpResult = addXp(interaction.user.id, won ? WIN_XP : LOSE_XP);
+    const xpResult = addXp(interaction.user.id, totalXp);
     recordGameResult(interaction.user.id, won, 'dice', won ? netWin : 0);
     const newBadges = checkAndAwardBadges(interaction.user.id);
 
@@ -62,14 +63,14 @@ module.exports = {
       .setDescription(
         `${DICE_FACES[roll - 1]} The dice landed on **${roll}**! You guessed **${guess}**.\n\n` +
         (won
-          ? `✅ You won **${netWin} credits** (5x payout)! · +${WIN_XP} XP`
-          : `❌ You lost **${bet} credits**. · +${LOSE_XP} XP`)
+          ? `✅ You won **${netWin} credits** (5x payout)! · +${totalXp} XP`
+          : `❌ You lost **${bet} credits**. · +${totalXp} XP`)
       )
       .setFooter({ text: `Current balance: ${newBalance.balance} credits` });
 
     appendLevelUp(embed, xpResult);
     appendBadgeUnlocks(embed, newBadges);
 
-    await interaction.editReply({ embeds: [embed] });
+    await safeEdit(interaction, { embeds: [embed] }, 2);
   },
 };
